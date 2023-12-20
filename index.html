@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar Engine</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+    <script src="https://threejs.org/build/three.js"></script>
+    <script src="https://unpkg.com/gsap@3.9.0/dist/gsap.min.js"></script>
+    <script src="https://unpkg.com/dat.gui@0.7.7/build/dat.gui.min.js"></script>
+</head>
+<body>
+    <script>
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+        camera.position.z = 500;
+
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let isMouseDown = false;
+        let previousMouseX = 0;
+        let previousMouseY = 0;
+        let isZoomMode = true; // Variable to toggle between zoom and move modes
+
+        const planets = [];
+        const moons = [];
+        const asteroids = [];
+        const stars = [];
+        const comets = [];
+        const dwarfPlanets = [];
+
+        const createPlanet = (name, radius, distance, color, orbitSpeed, rotationSpeed) => {
+            const planetGeometry = new THREE.SphereGeometry(radius, 32, 32);
+            const planetMaterial = new THREE.MeshBasicMaterial({ color });
+            const planet = new THREE.Mesh(planetGeometry, planetMaterial);
+            planet.position.set(distance, 0, 0);
+
+            const planetOrbit = new THREE.Object3D();
+            scene.add(planetOrbit);
+            planetOrbit.add(planet);
+
+            planets.push({ name, mesh: planet, orbit: planetOrbit, orbitSpeed, rotationSpeed, distance, color, radius });
+
+            return { orbit: planetOrbit, orbitSpeed, rotationSpeed };
+        };
+
+        const createMoon = (parentPlanet, name, radius, distance, color, orbitSpeed, rotationSpeed) => {
+            const moonGeometry = new THREE.SphereGeometry(radius, 32, 32);
+            const moonMaterial = new THREE.MeshBasicMaterial({ color });
+            const moon = new THREE.Mesh(moonGeometry, moonMaterial);
+            moon.position.set(distance, 0, 0);
+
+            const moonOrbit = new THREE.Object3D();
+            parentPlanet.orbit.add(moonOrbit);
+            moonOrbit.add(moon);
+
+            moons.push({ parent: parentPlanet, name, mesh: moon, orbit: moonOrbit, orbitSpeed, rotationSpeed, distance, color, radius });
+
+            return { orbit: moonOrbit, orbitSpeed, rotationSpeed };
+        };
+
+        const createAsteroidBelt = (distance, quantity) => {
+            const asteroidBelt = new THREE.Object3D();
+
+            for (let i = 0; i < quantity; i++) {
+                const asteroidGeometry = new THREE.SphereGeometry(1, 8, 8);
+                const asteroidMaterial = new THREE.MeshBasicMaterial({ color: 0x555555 });
+                const asteroid = new THREE.Mesh(asteroidGeometry, asteroidMaterial);
+
+                const angle = Math.random() * Math.PI * 2;
+                const radius = Math.random() * 20 + distance;
+
+                asteroid.position.set(
+                    radius * Math.cos(angle),
+                    Math.random() * 5 - 2.5,
+                    radius * Math.sin(angle)
+                );
+
+                asteroidBelt.add(asteroid);
+                asteroids.push(asteroid);
+            }
+
+            scene.add(asteroidBelt);
+        };
+
+        const createStar = (radius, color, position) => {
+            const starGeometry = new THREE.SphereGeometry(radius, 32, 32);
+            const starMaterial = new THREE.MeshBasicMaterial({ color });
+            const star = new THREE.Mesh(starGeometry, starMaterial);
+            star.position.set(position.x, position.y, position.z);
+
+            stars.push(star);
+            scene.add(star);
+        };
+
+        const createComet = (name, radius, distance, color, orbitSpeed, rotationSpeed) => {
+            const cometGeometry = new THREE.SphereGeometry(radius, 32, 32);
+            const cometMaterial = new THREE.MeshBasicMaterial({ color });
+            const comet = new THREE.Mesh(cometGeometry, cometMaterial);
+            comet.position.set(distance, 0, 0);
+
+            const cometOrbit = new THREE.Object3D();
+            scene.add(cometOrbit);
+            cometOrbit.add(comet);
+
+            comets.push({ name, mesh: comet, orbit: cometOrbit, orbitSpeed, rotationSpeed, distance, color, radius });
+
+            return { orbit: cometOrbit, orbitSpeed, rotationSpeed };
+        };
+
+        const createDwarfPlanet = (name, radius, distance, color, orbitSpeed, rotationSpeed) => {
+            const dwarfPlanetGeometry = new THREE.SphereGeometry(radius, 32, 32);
+            const dwarfPlanetMaterial = new THREE.MeshBasicMaterial({ color });
+            const dwarfPlanet = new THREE.Mesh(dwarfPlanetGeometry, dwarfPlanetMaterial);
+            dwarfPlanet.position.set(distance, 0, 0);
+
+            const dwarfPlanetOrbit = new THREE.Object3D();
+            scene.add(dwarfPlanetOrbit);
+            dwarfPlanetOrbit.add(dwarfPlanet);
+
+            dwarfPlanets.push({ name, mesh: dwarfPlanet, orbit: dwarfPlanetOrbit, orbitSpeed, rotationSpeed, distance, color, radius });
+
+            return { orbit: dwarfPlanetOrbit, orbitSpeed, rotationSpeed };
+        };
+
+        // Create a star at the center of the solar system
+        createStar(109, 0xffd700, new THREE.Vector3(0, 0, 0)); // The sun
+
+        // Create planets
+        const mercury = createPlanet("Mercury", 0.3829, 67.91, 0xc0c0c0, 0.0015, 0.03);
+        const venus = createPlanet("Venus", 0.949, 118.2, 0xffa500, 0.001, 0.02);
+        const earth = createPlanet("Earth", 1, 169.6, 0x00aaff, 0.0007, 0.015);
+        const mars = createPlanet("Mars", 0.532, 257.9, 0xff4500, 0.0005, 0.01);
+        const jupiter = createPlanet("Jupiter", 11.2, 828.5, 0xdaa520, 0.0002, 0.005);
+        const saturn = createPlanet("Saturn", 9.45, 1477, 0xffd700, 0.0001, 0.002);
+        const uranus = createPlanet("Uranus", 4.01, 2971, 0x87ceeb, 0.00007, 0.001);
+        const neptune = createPlanet("Neptune", 3.88, 4595, 0x000080, 0.00005, 0.0008);
+
+        // Create moons
+        createMoon(earth, "Moon", 0.273, 60, 0xdddddd, 0.01, 0.02);
+
+        // Create asteroid belt
+        createAsteroidBelt(300, 200);
+
+        // Create random stars
+        createStar(1, 0xffffff, new THREE.Vector3(150, 100, 0));
+        createStar(1, 0xffffff, new THREE.Vector3(-200, -50, 0));
+        createStar(1, 0xffffff, new THREE.Vector3(50, -150, 100));
+
+        // Create comets
+        createComet("Halley's Comet", 0.1, 550, 0x888888, 0.002, 0.005);
+
+        // Create dwarf planets
+        const pluto = createDwarfPlanet("Pluto", 0.18, 6000, 0x888888, 0.00004, 0.0006);
+        const eris = createDwarfPlanet("Eris", 0.2, 9400, 0x888888, 0.00003, 0.0005);
+        const haumea = createDwarfPlanet("Haumea", 0.2, 11060, 0x888888, 0.00002, 0.0004);
+
+        window.addEventListener('resize', () => {
+            const newWidth = window.innerWidth;
+            const newHeight = window.innerHeight;
+
+            camera.aspect = newWidth / newHeight;
+            camera.updateProjectionMatrix();
+
+            renderer.setSize(newWidth, newHeight);
+        });
+
+        document.addEventListener('mousedown', (event) => {
+            isMouseDown = true;
+            previousMouseX = event.clientX;
+            previousMouseY = event.clientY;
+        });
+
+        document.addEventListener('mouseup', () => {
+            isMouseDown = false;
+        });
+
+        document.addEventListener('mousemove', (event) => {
+            if (isMouseDown) {
+                const deltaMouseX = event.clientX - previousMouseX;
+                const deltaMouseY = event.clientY - previousMouseY;
+
+                if (isZoomMode) {
+                    // Rotate the camera based on mouse movement for zoom mode
+                    camera.rotation.y -= deltaMouseX * 0.002;
+                    camera.rotation.x -= deltaMouseY * 0.002;
+
+                    // Clamp vertical rotation to avoid flipping
+                    camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+                } else {
+                    // Move the camera based on mouse movement for move mode
+                    const moveSpeed = 10;
+                    const forwardVector = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+                    const rightVector = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
+
+                    camera.position.add(forwardVector.multiplyScalar(-deltaMouseY * moveSpeed * 0.01));
+                    camera.position.add(rightVector.multiplyScalar(-deltaMouseX * moveSpeed * 0.01));
+                }
+
+                previousMouseX = event.clientX;
+                previousMouseY = event.clientY;
+            }
+        });
+
+        document.addEventListener('wheel', (event) => {
+            if (isZoomMode) {
+                // Calculate mouse position in normalized device coordinates
+                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+                // Update the raycaster
+                raycaster.setFromCamera(mouse, camera);
+
+                // Check for intersections with planets, stars, and asteroids
+                const intersects = raycaster.intersectObjects([
+                    ...planets.map(planet => planet.mesh),
+                    ...moons.map(moon => moon.mesh),
+                    ...asteroids,
+                    ...stars,
+                    ...comets.map(comet => comet.mesh),
+                    ...dwarfPlanets.map(dwarfPlanet => dwarfPlanet.mesh)
+                ]);
+
+                // Zoom in/out based on the direction of the mouse wheel
+                const zoomDelta = event.deltaY > 0 ? 1.1 : 0.9;
+
+                if (intersects.length === 0) {
+                    // Zoom in/out globally
+                    camera.zoom /= zoomDelta;
+                    camera.updateProjectionMatrix();
+                }
+            } else {
+                // Move the camera forward/backward based on mouse wheel
+                const moveSpeed = 10;
+                camera.position.add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(event.deltaY * moveSpeed * 0.005));
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (!isZoomMode) {
+                // When in move mode, use 'e' to move up and 'q' to move down
+                const moveSpeed = 10;
+                const upVector = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion).normalize();
+                const downVector = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion).normalize();
+
+                switch (event.key) {
+                    case 'e':
+                        camera.position.add(upVector.multiplyScalar(moveSpeed * 0.1));
+                        break;
+                    case 'q':
+                        camera.position.add(downVector.multiplyScalar(moveSpeed * 0.1));
+                        break;
+                }
+            }
+        });
+
+        // Advanced GUI Controls
+        const gui = new dat.GUI();
+
+        const cameraControls = gui.addFolder('Camera Controls');
+        cameraControls.add(camera.position, 'x').name('Camera X').step(10);
+        cameraControls.add(camera.position, 'y').name('Camera Y').step(10);
+        cameraControls.add(camera.position, 'z').name('Camera Z').step(10);
+        cameraControls.add(camera.rotation, 'x', -Math.PI / 2, Math.PI / 2).name('Camera Rotation X').step(0.01);
+        cameraControls.add(camera.rotation, 'y', -Math.PI, Math.PI).name('Camera Rotation Y').step(0.01);
+        cameraControls.add({ toggleMode: () => isZoomMode = !isZoomMode }, 'toggleMode').name('Toggle Zoom/Move Mode');
+
+        const planetControls = gui.addFolder('Planet Controls');
+        planets.forEach((planet, index) => {
+            const planetFolder = planetControls.addFolder(`Planet ${index + 1}`);
+            planetFolder.add(planet.orbit.rotation, 'y', 0, Math.PI * 2).name('Orbit Rotation Y').step(0.01);
+            planetFolder.add(planet.mesh.rotation, 'x', 0, Math.PI * 2).name('Planet Rotation X').step(0.01);
+            planetFolder.add(planet.mesh.rotation, 'y', 0, Math.PI * 2).name('Planet Rotation Y').step(0.01);
+            planetFolder.add(            planet.mesh.rotation, 'z', 0, Math.PI * 2).name('Planet Rotation Z').step(0.01);
+
+            // Advanced controls for planet properties
+            const planetProps = planetFolder.addFolder('Properties');
+            planetProps.add(planet.mesh.scale, 'x', 0.1, 2).name('Size').step(0.01);
+            planetProps.addColor({ color: planet.color }, 'color').name('Color').onChange((value) => {
+                planet.mesh.material.color.set(value);
+            });
+            planetProps.add(planet, 'orbitSpeed', 0.0001, 0.01).name('Orbit Speed').step(0.0001);
+            planetProps.add(planet, 'rotationSpeed', 0.001, 0.05).name('Rotation Speed').step(0.001);
+        });
+
+        // Moons controls
+        const moonControls = gui.addFolder('Moon Controls');
+        moons.forEach((moon, index) => {
+            const moonFolder = moonControls.addFolder(`Moon ${index + 1}`);
+            moonFolder.add(moon.orbit.rotation, 'y', 0, Math.PI * 2).name('Orbit Rotation Y').step(0.01);
+            moonFolder.add(moon.mesh.rotation, 'x', 0, Math.PI * 2).name('Moon Rotation X').step(0.01);
+            moonFolder.add(moon.mesh.rotation, 'y', 0, Math.PI * 2).name('Moon Rotation Y').step(0.01);
+            moonFolder.add(moon.mesh.rotation, 'z', 0, Math.PI * 2).name('Moon Rotation Z').step(0.01);
+
+            // Advanced controls for moon properties
+            const moonProps = moonFolder.addFolder('Properties');
+            moonProps.add(moon.mesh.scale, 'x', 0.1, 1).name('Size').step(0.01);
+            moonProps.addColor({ color: moon.color }, 'color').name('Color').onChange((value) => {
+                moon.mesh.material.color.set(value);
+            });
+            moonProps.add(moon, 'orbitSpeed', 0.0001, 0.01).name('Orbit Speed').step(0.0001);
+            moonProps.add(moon, 'rotationSpeed', 0.001, 0.05).name('Rotation Speed').step(0.001);
+        });
+
+        // Dwarf Planets controls
+        const dwarfPlanetControls = gui.addFolder('Dwarf Planet Controls');
+        dwarfPlanets.forEach((dwarfPlanet, index) => {
+            const dwarfPlanetFolder = dwarfPlanetControls.addFolder(`Dwarf Planet ${index + 1}`);
+            dwarfPlanetFolder.add(dwarfPlanet.orbit.rotation, 'y', 0, Math.PI * 2).name('Orbit Rotation Y').step(0.01);
+            dwarfPlanetFolder.add(dwarfPlanet.mesh.rotation, 'x', 0, Math.PI * 2).name('Dwarf Planet Rotation X').step(0.01);
+            dwarfPlanetFolder.add(dwarfPlanet.mesh.rotation, 'y', 0, Math.PI * 2).name('Dwarf Planet Rotation Y').step(0.01);
+            dwarfPlanetFolder.add(dwarfPlanet.mesh.rotation, 'z', 0, Math.PI * 2).name('Dwarf Planet Rotation Z').step(0.01);
+
+            // Advanced controls for dwarf planet properties
+            const dwarfPlanetProps = dwarfPlanetFolder.addFolder('Properties');
+            dwarfPlanetProps.add(dwarfPlanet.mesh.scale, 'x', 0.1, 1).name('Size').step(0.01);
+            dwarfPlanetProps.addColor({ color: dwarfPlanet.color }, 'color').name('Color').onChange((value) => {
+                dwarfPlanet.mesh.material.color.set(value);
+            });
+            dwarfPlanetProps.add(dwarfPlanet, 'orbitSpeed', 0.0001, 0.01).name('Orbit Speed').step(0.0001);
+            dwarfPlanetProps.add(dwarfPlanet, 'rotationSpeed', 0.001, 0.05).name('Rotation Speed').step(0.001);
+        });
+
+        // Simulation Controls
+        const simControls = gui.addFolder('Simulation Controls');
+        const timeSpeedControl = simControls.add({ timeSpeed: 1 }, 'timeSpeed', 0.1, 10).name('Time Speed').step(0.1);
+        const resourceControls = simControls.addFolder('Resource Controls');
+        const fuelControl = resourceControls.add({ fuel: 100 }, 'fuel', 0, 100).name('Fuel').step(1);
+        const energyControl = resourceControls.add({ energy: 100 }, 'energy', 0, 100).name('Energy').step(1);
+
+        // Exploration and Colonization Controls
+        const explorationControls = gui.addFolder('Exploration');
+        explorationControls.add({ explore: () => alert('Exploring the universe!') }, 'explore').name('Explore');
+
+        const colonizationControls = gui.addFolder('Colonization');
+        colonizationControls.add({ colonize: () => alert('Colonizing a new planet!') }, 'colonize').name('Colonize');
+
+        // Weather Controls
+        const weatherControls = gui.addFolder('Weather Controls');
+        weatherControls.add({ toggleWeather: () => alert('Toggle weather!') }, 'toggleWeather').name('Toggle Weather');
+        weatherControls.add({ changeWeather: () => alert('Change weather!') }, 'changeWeather').name('Change Weather');
+
+        // Quest System
+        const questControls = gui.addFolder('Quest System');
+        questControls.add({ activateQuest: () => alert('Activate quest!') }, 'activateQuest').name('Activate Quest');
+        questControls.add({ completeQuest: () => alert('Complete quest!') }, 'completeQuest').name('Complete Quest');
+
+        // Space-Time Distortion Controls
+        const distortionControls = gui.addFolder('Space-Time Distortion');
+        distortionControls.add({ activateDistortion: () => alert('Activate space-time distortion!') }, 'activateDistortion').name('Activate Distortion');
+        distortionControls.add({ deactivateDistortion: () => alert('Deactivate space-time distortion!') }, 'deactivateDistortion').name('Deactivate Distortion');
+
+        // Warp Speed
+        const warpSpeedControls = gui.addFolder('Warp Speed');
+        warpSpeedControls.add({ engageWarpSpeed: () => warpSpeed() }, 'engageWarpSpeed').name('Engage Warp Speed');
+
+        const updateGUI = () => {
+            cameraControls.updateDisplay();
+            planetControls.updateDisplay();
+            moonControls.updateDisplay();
+            dwarfPlanetControls.updateDisplay();
+            simControls.updateDisplay();
+            explorationControls.updateDisplay();
+            colonizationControls.updateDisplay();
+            weatherControls.updateDisplay();
+            questControls.updateDisplay();
+            distortionControls.updateDisplay();
+            warpSpeedControls.updateDisplay();
+        };
+
+        timeSpeedControl.onChange((value) => {
+            // Adjust the speed of the planets based on the time speed control
+            planets.forEach((planet) => {
+                planet.orbitSpeed = planet.orbitSpeed * value;
+                planet.rotationSpeed = planet.rotationSpeed * value;
+            });
+        });
+
+        const checkCollision = () => {
+            const cameraPos = new THREE.Vector3();
+            camera.getWorldPosition(cameraPos);
+
+            for (const planet of planets) {
+                const planetPos = planet.mesh.position.clone();
+                const distance = cameraPos.distanceTo(planetPos);
+
+                if (distance < planet.radius + 10) { // 10 is a buffer to avoid getting too close
+                    const newPosition = planetPos.clone().add(cameraPos.clone().sub(planetPos).normalize().multiplyScalar(planet.radius + 10));
+                    camera.position.copy(newPosition);
+
+                    // Adjust the near clipping plane to avoid disappearing planets
+                    camera.near = Math.max(1, planet.radius + 10);
+                    camera.updateProjectionMatrix();
+                }
+            }
+        };
+
+        const animate = () => {
+            requestAnimationFrame(animate);
+
+            planets.forEach((planet) => {
+                planet.orbit.rotation.y += planet.orbitSpeed;
+                planet.orbit.rotation.x = Math.PI / 6; // Tilt the planets for more realism
+                planet.orbit.rotation.z = Math.PI / 6;
+                planet.mesh.rotation.x += planet.rotationSpeed;
+                planet.mesh.rotation.y += planet.rotationSpeed;
+                planet.mesh.rotation.z += planet.rotationSpeed;
+            });
+
+            checkCollision(); // Check for collisions
+
+            updateGUI(); // Update GUI controls
+
+            renderer.render(scene, camera);
+        };
+
+        animate();
+    </script>
+</body>
+</html>
