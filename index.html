@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar Engine</title>
+    <title>solar Engine</title>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
@@ -36,11 +36,19 @@
         const comets = [];
         const dwarfPlanets = [];
 
-        const createPlanet = (name, radius, distance, color, orbitSpeed, rotationSpeed) => {
+        const createPlanet = (name, radius, distance, color, orbitSpeed, rotationSpeed, hasRings = false) => {
             const planetGeometry = new THREE.SphereGeometry(radius, 32, 32);
             const planetMaterial = new THREE.MeshBasicMaterial({ color });
             const planet = new THREE.Mesh(planetGeometry, planetMaterial);
             planet.position.set(distance, 0, 0);
+
+            if (hasRings) {
+                const ringGeometry = new THREE.RingGeometry(radius * 1.5, radius * 2.5, 32);
+                const ringMaterial = new THREE.MeshBasicMaterial({ color: 0xbbbbbb, side: THREE.DoubleSide });
+                const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+                ring.rotation.x = Math.PI / 2; // Make the ring face the planet's equator
+                planet.add(ring);
+            }
 
             const planetOrbit = new THREE.Object3D();
             scene.add(planetOrbit);
@@ -133,14 +141,18 @@
         // Create a star at the center of the solar system
         createStar(109, 0xffd700, new THREE.Vector3(0, 0, 0)); // The sun
 
-        // Create planets
-        const mercury = createPlanet("Mercury", 0.3829, 67.91, 0xc0c0c0, 0.0015, 0.03);
-        const venus = createPlanet("Venus", 0.949, 118.2, 0xffa500, 0.001, 0.02);
-        const earth = createPlanet("Earth", 1, 169.6, 0x00aaff, 0.0007, 0.015);
-        const mars = createPlanet("Mars", 0.532, 257.9, 0xff4500, 0.0005, 0.01);
-        const jupiter = createPlanet("Jupiter", 11.2, 828.5, 0xdaa520, 0.0002, 0.005);
-        const saturn = createPlanet("Saturn", 9.45, 1477, 0xffd700, 0.0001, 0.002);
-        const uranus = createPlanet("Uranus", 4.01, 2971, 0x87ceeb, 0.00007, 0.001);
+        // Create planets with rings
+        const saturn = createPlanet("Saturn", 9.45, 1477, 0xffd700, 0.0001, 0.002, true);
+        const uranus = createPlanet("Uranus", 4.01, 2971, 0x87ceeb, 0.00007, 0.001, true);
+
+        // Create other planets
+        const mercury = createPlanet("Mercury", 0.383, 57.9, 0xaaaaaa, 0.0003, 0.01);
+        const venus = createPlanet("Venus", 0.949, 108.2, 0xdcb38c, 0.0002, 0.005);
+        const earth = createPlanet("Earth", 1, 149.6, 0x1e90ff, 0.0001, 0.001);
+        const mars = createPlanet("Mars", 0.532, 227.9, 0xff4500, 0.00007, 0.001);
+        const jupiter = createPlanet("Jupiter", 11.21, 778.3, 0xdaa520, 0.00003, 0.0005);
+        
+        
         const neptune = createPlanet("Neptune", 3.88, 4595, 0x000080, 0.00005, 0.0008);
 
         // Create moons
@@ -269,16 +281,17 @@
         cameraControls.add(camera.position, 'y').name('Camera Y').step(10);
         cameraControls.add(camera.position, 'z').name('Camera Z').step(10);
         cameraControls.add(camera.rotation, 'x', -Math.PI / 2, Math.PI / 2).name('Camera Rotation X').step(0.01);
-        cameraControls.add(camera.rotation, 'y', -Math.PI, Math.PI).name('Camera Rotation Y').step(0.01);
-        cameraControls.add({ toggleMode: () => isZoomMode = !isZoomMode }, 'toggleMode').name('Toggle Zoom/Move Mode');
+        cameraControls.add(camera.rotation, 'y', -Math.PI * 2, Math.PI * 2).name('Camera Rotation Y').step(0.01);
+        cameraControls.add(camera.rotation, 'z', -Math.PI / 2, Math.PI / 2).name('Camera Rotation Z').step(0.01);
 
+        // Planet Controls
         const planetControls = gui.addFolder('Planet Controls');
         planets.forEach((planet, index) => {
             const planetFolder = planetControls.addFolder(`Planet ${index + 1}`);
             planetFolder.add(planet.orbit.rotation, 'y', 0, Math.PI * 2).name('Orbit Rotation Y').step(0.01);
             planetFolder.add(planet.mesh.rotation, 'x', 0, Math.PI * 2).name('Planet Rotation X').step(0.01);
             planetFolder.add(planet.mesh.rotation, 'y', 0, Math.PI * 2).name('Planet Rotation Y').step(0.01);
-            planetFolder.add(            planet.mesh.rotation, 'z', 0, Math.PI * 2).name('Planet Rotation Z').step(0.01);
+            planetFolder.add(planet.mesh.rotation, 'z', 0, Math.PI * 2).name('Planet Rotation Z').step(0.01);
 
             // Advanced controls for planet properties
             const planetProps = planetFolder.addFolder('Properties');
@@ -357,31 +370,10 @@
         distortionControls.add({ activateDistortion: () => alert('Activate space-time distortion!') }, 'activateDistortion').name('Activate Distortion');
         distortionControls.add({ deactivateDistortion: () => alert('Deactivate space-time distortion!') }, 'deactivateDistortion').name('Deactivate Distortion');
 
-        // Warp Speed
-        const warpSpeedControls = gui.addFolder('Warp Speed');
-        warpSpeedControls.add({ engageWarpSpeed: () => warpSpeed() }, 'engageWarpSpeed').name('Engage Warp Speed');
-
-        const updateGUI = () => {
-            cameraControls.updateDisplay();
-            planetControls.updateDisplay();
-            moonControls.updateDisplay();
-            dwarfPlanetControls.updateDisplay();
-            simControls.updateDisplay();
-            explorationControls.updateDisplay();
-            colonizationControls.updateDisplay();
-            weatherControls.updateDisplay();
-            questControls.updateDisplay();
-            distortionControls.updateDisplay();
-            warpSpeedControls.updateDisplay();
-        };
-
-        timeSpeedControl.onChange((value) => {
-            // Adjust the speed of the planets based on the time speed control
-            planets.forEach((planet) => {
-                planet.orbitSpeed = planet.orbitSpeed * value;
-                planet.rotationSpeed = planet.rotationSpeed * value;
-            });
-        });
+        // Black Hole Controls
+        const blackHoleControls = gui.addFolder('Black Hole Controls');
+        blackHoleControls.add({ createBlackHole: () => alert('Creating a black hole!') }, 'createBlackHole').name('Create Black Hole');
+        blackHoleControls.add({ destroyBlackHole: () => alert('Destroying a black hole!') }, 'destroyBlackHole').name('Destroy Black Hole');
 
         const checkCollision = () => {
             const cameraPos = new THREE.Vector3();
@@ -402,6 +394,12 @@
             }
         };
 
+        const updateGUI = () => {
+            timeSpeedControl.updateDisplay();
+            fuelControl.updateDisplay();
+            energyControl.updateDisplay();
+        };
+
         const animate = () => {
             requestAnimationFrame(animate);
 
@@ -412,6 +410,24 @@
                 planet.mesh.rotation.x += planet.rotationSpeed;
                 planet.mesh.rotation.y += planet.rotationSpeed;
                 planet.mesh.rotation.z += planet.rotationSpeed;
+            });
+
+            moons.forEach((moon) => {
+                moon.orbit.rotation.y += moon.orbitSpeed;
+                moon.orbit.rotation.x = Math.PI / 6; // Tilt the moons for more realism
+                moon.orbit.rotation.z = Math.PI / 6;
+                moon.mesh.rotation.x += moon.rotationSpeed;
+                moon.mesh.rotation.y += moon.rotationSpeed;
+                moon.mesh.rotation.z += moon.rotationSpeed;
+            });
+
+            dwarfPlanets.forEach((dwarfPlanet) => {
+                dwarfPlanet.orbit.rotation.y += dwarfPlanet.orbitSpeed;
+                dwarfPlanet.orbit.rotation.x = Math.PI / 6; // Tilt the dwarf planets for more realism
+                dwarfPlanet.orbit.rotation.z = Math.PI / 6;
+                dwarfPlanet.mesh.rotation.x += dwarfPlanet.rotationSpeed;
+                dwarfPlanet.mesh.rotation.y += dwarfPlanet.rotationSpeed;
+                dwarfPlanet.mesh.rotation.z += dwarfPlanet.rotationSpeed;
             });
 
             checkCollision(); // Check for collisions
@@ -425,3 +441,5 @@
     </script>
 </body>
 </html>
+
+
